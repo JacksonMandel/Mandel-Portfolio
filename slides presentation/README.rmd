@@ -1,0 +1,5 @@
+# Populism in Pan-American Politics.
+
+This slide presentation looks at populism in the politics of the Americas, and compares it with the level of populist rhetoric in other continents.
+
+The data was sourced from V-Dem's V-Party index (https://www.v-dem.net/data/v-party-dataset/)
