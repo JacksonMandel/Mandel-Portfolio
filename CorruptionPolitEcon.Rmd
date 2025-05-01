@@ -1,0 +1,251 @@
+---
+title: "CorruptionPolitEcon Codebook"
+author: "Jackson Mandel"
+date: "2025-04-20"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+#Setup
+library(tidyverse)
+library(readxl)
+library(readr)
+library(kableExtra)
+library(knitr)
+
+#Read data files
+load("vdem.RData")
+Corrup <- read_excel("CPI2024-Results-and-trends.xlsx")
+InfLab <- read_csv('EMP_NIFL_SEX_INS_RT_A-20250420T1917.csv')
+
+#Filter VDem Data
+vdem2 <- vdem %>%
+  filter(year == 2024) %>%
+  select(country_name, year, v2x_polyarchy, v2x_libdem, v2x_partipdem,
+         v2x_egaldem, v2xel_frefair, v2xeg_eqaccess,
+       ) %>%
+  rename(CountryName = country_name) %>%
+  rename(Polyarchy = v2x_polyarchy) %>%
+  rename(LibDem = v2x_libdem) %>%
+  rename(ParticipDem = v2x_partipdem) %>%
+  rename(EgalDem = v2x_egaldem) %>%
+  rename(FreeFairElect = v2xel_frefair) %>%
+  rename(EqualAccess = v2xeg_eqaccess)%>%
+  rename(YearExclInfLab = year)
+
+#Filter Corrup Data
+Corrup2 <- Corrup %>%
+  select('Corruption Perceptions Index 2024: Global scores', ...4, ...5, 
+         ...6, ...13, ...15, ...21) %>%
+  rename(CPIScore = ...4) %>%
+  rename(CPIScoreRank = ...5) %>%
+  rename(CPIScoreStdErr = ...6) %>%
+  rename(EconIntelRating = ...13) %>%
+  rename(SnPGloInsightsRating = ...15) %>%
+  rename(WEFRating = ...21)
+
+#Filter InfLab Data
+InfLab2 <- InfLab %>%
+  group_by(ref_area.label) %>%
+  filter(time == max(time, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(classif1.label == "Institutional sector: Total") %>%
+  pivot_wider(names_from = sex.label, values_from = obs_value)%>%
+  select(ref_area.label, time, Total, Male, Female) %>%
+  rename(InfLabYear = time) %>%
+  rename(MaleInfLab = Male) %>%
+  rename(FemInfLab = Female) %>%
+  rename(TotInfLab = Total)
+
+#Join Datasets
+jointdata <- vdem2 %>%
+  left_join(Corrup2, by = 
+    c("CountryName" = "Corruption Perceptions Index 2024: Global scores"))%>%
+  left_join(InfLab2, by = c("CountryName" = "ref_area.label"))%>%
+  ##Make all variables on a 0 to 1 scale.
+  mutate(across(c(CPIScore, CPIScoreStdErr, 
+                  SnPGloInsightsRating, EconIntelRating, WEFRating), 
+                ~ as.numeric(.x) / 100))
+#Function to make tables
+summarize_variable <- function(variable, caption) {
+  summary_stats <- summary(variable)
+  summary_df <- data.frame(
+    Statistic = names(summary_stats),
+    Value = round(as.numeric(summary_stats), 3)
+  )
+  kable(summary_df, caption = caption)
+}
+```
+
+# Overview
+  This dataset combines several key indicators around democracy, political openness, informal employment, and corruption.  The objective is to facilitate the study of interactions between corruption and political economy on a cross-country comparative basis.
+  
+---
+     
+# Sources and Methodology
+  The data in this dataset is derived from three key sources: the V-Dem dataset, Transparency International's Corruption Perceptions Index, and the International Labor Organization's ILOSTAT data on informal unemployment.
+  
+## V-Dem Data
+  6 indicators (Polyarchy, LibDem, ParticipDem, EgalDem, FreeFairElect, EqualAccess) are derived from the V-Dem dataset.  The V-Dem data is in the form of ratings on a scale from 0 to 1, assessed by country experts.  In all of the variables used in this dataset, higher scores represent greater presence of a particular feature (free and fair elections, egalitarian democracy, etc.)
+  V-Dem typically uses five experts per country-year observation, out of a pool of around 4,000 total experts. They use a model to algorithmically estimate the reliability of each expert relative to other experts, as well as the extent to which their assessment differs from those of other experts.  These are then used to weight each expert's assessment relative to others in calculating final scores.
+  
+## Corruption Perceptions Index Data
+  6 indicators (CPIScore, CPIScoreRank, CPIScoreStdErr, EconIntelRating, SnPGloInsightsRating, WEFRating) are derived from the Corruption Perceptions Index.  This index is maintained by Transparency International, and includes the overall CPI score - which is an average of corruption scores assigned by a group of major international organizations - as well as the original scores used to calculate that number.  Our dataset includes the CPI score, as well a selection of the original scores used to calculate it.
+  These variables are on a 0 to 100 scale, with 0 being least corrupt and 100 being more corrupt.  For our dataset, we have recalculated the scores to be on a 0 to 1 scale.
+  
+## ILOSTAT Data
+  3 indicators (TotInfLab, MaleInfLab, FemaleInfLab) are derived from ILOSTAT's data on informal employment.  These variables are on a 0 to 1 scale, with 0 representing 0% of a given population employed in the informal economy, and 1 representing 100% of a given population employed in the informal economy. Employment in the informal economy constitutes employment in "Informal productive activities," which are defined as "all productive activities carried out by persons or economic units that are - in law or in practice - not covered by formal arrangements."
+  
+---
+
+## Citations
+1. Coppedge, Michael, John Gerring, Carl Henrik Knutsen, Staffan I. Lindberg, Jan Teorell, David Altman, Fabio Angiolillo, Michael Bernhard, Agnes Cornell, M. Steven Fish, Linnea Fox, Lisa Gastaldi, Haakon Gjerlow, Adam Glynn, Ana Good God, Sandra Grahn, Allen Hicken, Katrin Kinzelbach, Joshua Krusell, Kyle L. Marquardt, Kelly McMann, Valeriya Mechkova, Juraj Medzihorsky, Natalia Natsika, Anja Neundorf, Pamela Paxton, Daniel Pemstein, Johannes von Roemer, Brigitte Seim, Rachel Sigman, Svend-Erik Skaaning, Jeffrey Staton, Aksel Sundstroem, Marcus Tannenberg, Eitan Tzelgov, Yi-ting Wang, Felix Wiebrecht, Tore Wig, Steven Wilson and Daniel Ziblatt. 2025. "V-Dem [Country-Year/Country-Date] Dataset v15" Varieties of Democracy (V-Dem) Project. https://doi.org/10.23696/vdemds25.
+
+2. Transparency International. 2025. Corruption Perceptions Index 2024.
+https://www.transparency.org/en/cpi/2024.
+
+3. International Labour Organization. 2024. Informal Employment by Sex and Public/Private Sector – ILOSTAT.
+https://ilostat.ilo.org/topics/informality/.
+
+---
+
+# Variables
+
+## Country Name  
+**Variable Name:** `CountryName`  
+**Variable Type:** character  
+**Description:** Name of country  
+
+
+## Year (Excluding Informal Labor Data)    
+**Variable Name:** `YearExclInfLab`  
+**Variable Type:** numeric  
+**Description:** The year the data was gathered for all variables except those relating to informal labor. All of the non-informal labor data was gathered in 2024.
+
+## Polyarchy
+**Variable Name:** `Polyarchy`  
+**Variable Type:** numeric  
+**Description:** V-Dem describes this variable as rating "To what extent is the ideal of electoral democracy in its fullest sense achieved?" as evaluated by country experts in the field.  Electoral democracy is defined as making rulers accountable to their citizens via electoral procedures. On a scale of 0 to 1.  
+```{r Polyarchy, echo= FALSE}
+summarize_variable(jointdata$Polyarchy, "Summary Statistics for Polyarchy")
+```
+
+## Liberal Democracy
+**Variable Name:** `LibDem`  
+**Variable Type:** numeric  
+**Description:** V-Dem describes this variable as rating "To what extent is the ideal of liberal democracy achieved?" as evaluated by country experts in the field.  Liberal democracy is defined broadly as the protection of minority and individual rights against the tyranny of the majority. On a scale of 0 to 1.  
+```{r LibDem, echo= FALSE}
+summarize_variable(jointdata$LibDem, "Summary Statistics for Liberal Democracy")
+```
+
+## Participatory Democracy
+**Variable Name:** `ParticipDem`  
+**Variable Type:** numeric  
+**Description:** V-Dem describes this variable as rating "To what extent is the ideal of participatory democracy achieved?" as evaluated by country experts in the field.  Participatory democracy consists of the active involvement of citizens in all aspects of the political process, electoral and non-electoral.  On a scale of 0 to 1.  
+```{r Participdem, echo= FALSE}
+summarize_variable(jointdata$ParticipDem, "Summary Statistics for Participatory Democracy")
+```
+
+## Egalitarian Democracy
+**Variable Name:** `EgalDem`  
+**Variable Type:** numeric  
+**Description:** V-Dem describes this variable as rating "To what extent is the ideal of egalitarian democracy achieved?" as evaluated by country experts in the field.  Egalitarian democracy consists of equal opportunity to exercise political rights and liberties across all social groups.  On a scale of 0 to 1.  
+```{r Egalpdem, echo= FALSE}
+summarize_variable(jointdata$EgalDem, "Summary Statistics for Egalitarian Democracy")
+```
+
+## Free and Fair Elections
+**Variable Name:** `FreeFairElect`  
+**Variable Type:** numeric  
+**Description:** V-Dem describes this variable as rating what extent the most recent election in a country can be considered free and fair as evaluated by country experts in the field.  Free and fair elections are defined as those that relfect the will of the people with minimal interference beyond routine errors.  On a scale of 0 to 1.  
+```{r Freefairelect, echo= FALSE}
+summarize_variable(jointdata$FreeFairElect, "Summary Statistics for Free and Fair Elections")
+```
+
+## Equal Access
+**Variable Name:** `EqualAccess`  
+**Variable Type:** numeric  
+**Description:** V-Dem describes this variable as answering the question "How equal is access to power?" as evaluated by country experts in the field.  On a scale of 0 to 1.  
+```{r equalaccess, echo= FALSE}
+summarize_variable(jointdata$EqualAccess, "Summary Statistics for Equal Access")
+```
+
+## CPIScore
+**Variable Name:** `CPIScore`  
+**Variable Type:** numeric  
+**Description:** The CPI score is calculated by taking the average of a group of corruption index scores by major international publications and organizations. It is originally calculated on a 1 to 100 scale, but we have recalculated it on a 0 to 1 scale.  0 represents least corrupt, and 100 represents most corrupt.  For more information on the types of indices used to calculate the CPI score, see the other corruption rating variables (EconIntelRating, etc.)  
+```{r CPIScore, echo= FALSE}
+summarize_variable(jointdata$CPIScore, "Summary Statistics for Corruption Perceptions Index Score")
+```
+
+## CPIRank
+**Variable Name:** `CPI Score Rank`  
+**Variable Type:** numeric  
+**Description:** This variable is the rank of CPI scores relative to those of other countries.  1 represents the most corrupt country, 2 the second most corrupt, etc.  
+
+## CPIStdErr
+**Variable Name:** `FreeFairElect`  
+**Variable Type:** numeric  
+**Description:** This variable is the standard error of a country's given CPI score.
+
+## Economist Intelligence Unit Rating
+**Variable Name:** `EconIntelRating`  
+**Variable Type:** numeric  
+**Description:** The Economist Intelligence Unit CPI rating is a corruption index put together by the Economist Intelligence Unit - a group run by the newspaper The Economist - which ranks countries based on the existence and virulence of various corrupt public sector practices, such as bribery, nepotism, and state capture.
+```{r Econintelunit, echo= FALSE}
+summarize_variable(jointdata$EconIntelRating, "Summary Statistics for Economist Intelligence Unit Ratings")
+```
+
+## S & P Gloabl Insights Rating
+**Variable Name:** `SnPGloInsightsRating`  
+**Variable Type:** numeric  
+**Description:** The S & P Global Insights CPI rating is a corruption index put together by S & P Global Insights which ranks countries based on the existence and virulence of various corrupt public sector practices, such as bribery, nepotism, and state capture.
+```{r snp, echo= FALSE}
+summarize_variable(jointdata$SnPGloInsightsRating, "Summary Statistics for S & P Global Insights Ratings")
+```
+
+## World Economic Forum Rating
+**Variable Name:** `WEFRating`  
+**Variable Type:** numeric  
+**Description:** The World Economic Forum CPI rating is a corruption index put together by the World Economic Forum which ranks countries based on the existence and virulence of various corrupt public sector practices, such as bribery, nepotism, and state capture.
+```{r wef, echo= FALSE}
+summarize_variable(jointdata$WEFRating, "Summary Statistics for WEF Rating")
+```
+
+## Informal Labor Year
+**Variable Name:** `InfLabYear`  
+**Variable Type:** numeric  
+**Description:** This variable represents what year the data on informal unemployment was gathered in.
+```{r ily, echo= FALSE}
+summarize_variable(jointdata$InfLabYear, "Summary Statistics for Informal Labor Year")
+```
+
+## Total Informal Employment Rate
+**Variable Name:** `TotInfLab`  
+**Variable Type:** numeric  
+**Description:** This variable represents a country's total informal employment rate across all sexes, ages, and sectors.  The data was gathered by each country's statistical agency and reported to the International Labor Organization.
+```{r tie, echo= FALSE}
+summarize_variable(jointdata$TotInfLab, "Summary Statistics for Total Informal Unemployment Rate")
+```
+
+## Male Informal Employment Rate
+**Variable Name:** `MaleInfLab`  
+**Variable Type:** numeric  
+**Description:** This variable represents a country's informal employment rate among men across all ages and sectors.  The data was gathered by each country's statistical agency and reported to the International Labor Organization.
+```{r mie, echo= FALSE}
+summarize_variable(jointdata$MaleInfLab, "Summary Statistics for Male Informal Labor Employment Rates")
+```
+
+## Female Informal Employment Rate
+**Variable Name:** `FemaleInfLab`  
+**Variable Type:** numeric  
+**Description:** This variable represents a country's informal employment rate among women across all ages and sectors.  The data was gathered by each country's statistical agency and reported to the International Labor Organization.
+```{r fie, echo= FALSE}
+summarize_variable(jointdata$FemInfLab, "Summary Statistics for Female Informal Labor Employment Rates")
+```
+
+
+
+
